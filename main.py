@@ -440,7 +440,7 @@ def changeJob_email_send(gender, age, city, area, job_year, present_job, e_mail,
             'present_job': present_job,
             'mphone': mphone,
             'ip': get_ip(),
-            'time': datetime.now()
+            'time': str(datetime.now())
         }
         trace = logger.add('log_dictionary/log_{}.log'.format(datetime.now().strftime('%Y%m')),rotation='500 MB')
         logger.info('Info:{}'.format(info_dict))
@@ -757,12 +757,12 @@ def management_frame():
         st.download_button('下载表格-[我要換工作]', changejob_user_csv, file_name='changejob_user_df.csv', mime='text/csv')
         st.write('--------------------------------------------------------------------------------------------')
         st.write('資料庫')
-        with open(st.secrets['database_path'], "r") as file:#下載數據庫
+        with open(st.secrets['database_path'], "rb") as file:#下載數據庫
             st.download_button(
                 label="下載資料庫",
                 data=file,
                 file_name="user.db",
-                mime="application/octet-stream"
+
             )
         st.session_state.db.close()
     elif st.session_state.management_frame_flag == 3:
@@ -770,10 +770,10 @@ def management_frame():
         st.button('返回', on_click=manage_back)
         st.button('退出', on_click=manage_quit)
         st.write('--------------------------------------------------------------------------------------------')
-        log_file = st.selectbox("日志選擇", [file.split('\\')[1] for file in glob.glob('log_dictionary/*')])
-        log_path='log_dictionary/'+log_file
-        with open(log_path, "r") as file:#下載日志
-            st.text_area(label='日志内容',value=file.read(),height=500,max_chars=100000)
+        log_file = st.selectbox("日志選擇", [file.split('\\')[1] for file in glob.glob(st.secrets['log_path']+'*')])
+        log_path=st.secrets['log_path']+log_file
+        with open(log_path, "rb") as file:#下載日志
+            st.text_area(label='日志内容',value=file.read().decode('utf-8','ignore'),height=500,max_chars=100000)
             st.download_button(
                 label="下載日志",
                 data=file,
