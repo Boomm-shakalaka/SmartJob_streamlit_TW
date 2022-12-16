@@ -377,7 +377,7 @@ def findJob_email_send(gender, age, city, area, professional, job, e_mail, mphon
             'ip': get_ip(),
             'time': str(datetime.now())
         }
-        trace = logger.add('log_dictionary/log_dict.log', retention='30 days')
+        trace = logger.add('log_dictionary/log_{}.log'.format(datetime.now().strftime('%Y%m')), rotation="500 MB")
         logger.info('Info:{}'.format(info_dict))  # 记录log日志
         logger.remove(trace)
 
@@ -443,7 +443,7 @@ def changeJob_email_send(gender, age, city, area, job_year, present_job, e_mail,
             'ip': get_ip(),
             'time': str(datetime.now())
         }
-        trace = logger.add('log_dictionary/log_dict.log', retention='30 days')
+        trace = logger.add('log_dictionary/log_{}.log'.format(datetime.now().strftime('%Y%m')), rotation="500 MB")
         logger.info('Info:{}'.format(info_dict))
         logger.remove(trace)  # 记录log日志
 
@@ -776,7 +776,7 @@ def management_frame():
         st.button('返回', on_click=manage_back)
         st.button('退出', on_click=manage_quit)
         st.write('--------------------------------------------------------------------------------------------')
-        file_list = [file for file in glob.glob(st.secrets['log_path']) ]
+        file_list = [file for file in glob.glob(st.secrets['log_path'])]
         log_file = st.selectbox("日志選擇", file_list)
         with open(log_file, "rb") as file:  # 下載日志
             st.text_area(label='日志内容', value=file.read().decode('utf-8', 'ignore'), height=500, max_chars=100000)
