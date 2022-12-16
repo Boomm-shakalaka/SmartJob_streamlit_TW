@@ -770,18 +770,19 @@ def management_frame():
         st.button('返回', on_click=manage_back)
         st.button('退出', on_click=manage_quit)
         st.write('--------------------------------------------------------------------------------------------')
-        for file in glob.glob(st.secrets['log_path']):
-            print(1)
-        # log_file = st.selectbox("日志選擇", [file.split('\\')[1] )
-        # log_path=st.secrets['log_path']+log_file
-        # with open(log_path, "rb") as file:#下載日志
-        #     st.text_area(label='日志内容',value=file.read().decode('utf-8','ignore'),height=500,max_chars=100000)
-        #     st.download_button(
-        #         label="下載日志",
-        #         data=file,
-        #         file_name="log_file.log",
-        #         mime="application/octet-stream"
-        #     )
+        file_list=[]
+        for file in glob.glob(st.secrets['log_glob_path']):
+            file_list.append(file)
+        log_file = st.selectbox("日志選擇", file_list)
+        log_path=st.secrets['log_path']+log_file
+        with open(log_path, "rb") as file:#下載日志
+            st.text_area(label='日志内容',value=file.read().decode('utf-8','ignore'),height=500,max_chars=100000)
+            st.download_button(
+                label="下載日志",
+                data=file,
+                file_name="log_file.log",
+                mime="application/octet-stream"
+            )
 
 
 
