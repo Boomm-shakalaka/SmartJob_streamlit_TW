@@ -350,6 +350,7 @@ def get_ip():
     except:
         return ''
 
+
 def findJob_email_send(gender, age, city, area, professional, job, e_mail, mphone):
     st.session_state.val_num = create_string_number(9)
     email_flag = re.search('[a-zA-Z\\d_-]+@[a-zA-Z\\d_-]+(\\.[a-zA-Z\\d_-]+)+$', e_mail)
@@ -376,8 +377,8 @@ def findJob_email_send(gender, age, city, area, professional, job, e_mail, mphon
             'ip': get_ip(),
             'time': str(datetime.now())
         }
-        trace = logger.add('log_dictionary/log_{}.log'.format(datetime.now().strftime('%Y%m')),rotation="500 MB")
-        logger.info('Info:{}'.format(info_dict))# 记录log日志
+        trace = logger.add('log_dictionary/log_dict.log', retention='30 days')
+        logger.info('Info:{}'.format(info_dict))  # 记录log日志
         logger.remove(trace)
 
         job = jobName_conver[job]
@@ -442,7 +443,7 @@ def changeJob_email_send(gender, age, city, area, job_year, present_job, e_mail,
             'ip': get_ip(),
             'time': str(datetime.now())
         }
-        trace = logger.add('log_dictionary/log_{}.log'.format(datetime.now().strftime('%Y%m')),rotation='500 MB')
+        trace = logger.add('log_dictionary/log_dict.log', retention='30 days')
         logger.info('Info:{}'.format(info_dict))
         logger.remove(trace)  # 记录log日志
 
@@ -707,13 +708,18 @@ def manage_login(user, pwd):
 def manage_quit():
     st.session_state.management_frame_flag = 0
 
+
 def manage_database():
     st.session_state.management_frame_flag = 2
+
+
 def manage_log():
     st.session_state.management_frame_flag = 3
 
+
 def manage_back():
     st.session_state.management_frame_flag = 1
+
 
 def management_frame():
     if 'findJob_frame_flag' in st.session_state:
@@ -748,7 +754,7 @@ def management_frame():
         findjob_user_df = pd.read_sql("SELECT * FROM findjob_customer_info", con=st.session_state.db.conn)
         AgGrid(findjob_user_df, fit_columns_on_grid_load=False, theme='alpine')
         findjob_user_csv = convert_df(findjob_user_df)
-        st.download_button('下载表格-[我要找頭路]',findjob_user_csv,file_name='findjob_user_df.csv',mime='text/csv')
+        st.download_button('下载表格-[我要找頭路]', findjob_user_csv, file_name='findjob_user_df.csv', mime='text/csv')
         st.write('--------------------------------------------------------------------------------------------')
         st.write('用戶信息-我要換工作')
         changejob_user_df = pd.read_sql("SELECT * FROM changejob_customer_info", con=st.session_state.db.conn)
@@ -757,7 +763,7 @@ def management_frame():
         st.download_button('下载表格-[我要換工作]', changejob_user_csv, file_name='changejob_user_df.csv', mime='text/csv')
         st.write('--------------------------------------------------------------------------------------------')
         st.write('資料庫')
-        with open(st.secrets['database_path'], "rb") as file:#下載數據庫
+        with open(st.secrets['database_path'], "rb") as file:  # 下載數據庫
             st.download_button(
                 label="下載資料庫",
                 data=file,
@@ -770,20 +776,19 @@ def management_frame():
         st.button('返回', on_click=manage_back)
         st.button('退出', on_click=manage_quit)
         st.write('--------------------------------------------------------------------------------------------')
-        file_list=[]
-        for file in glob.glob(st.secrets['log_glob_path']):
-            file_list.append(file)
-        log_file = st.selectbox("日志選擇", file_list)
-        log_path=st.secrets['log_path']+log_file
-        with open(log_path, "rb") as file:#下載日志
-            st.text_area(label='日志内容',value=file.read().decode('utf-8','ignore'),height=500,max_chars=100000)
+        # file_list = []
+        # for file in glob.glob(st.secrets['log_glob_path']):
+        #     file_list.append(file)
+        # log_file = st.selectbox("日志選擇", file_list)
+        # log_path = st.secrets['log_path'] + log_file
+        with open(st.secrets['log_path'], "rb") as file:  # 下載日志
+            st.text_area(label='日志内容', value=file.read().decode('utf-8', 'ignore'), height=500, max_chars=100000)
             st.download_button(
                 label="下載日志",
                 data=file,
                 file_name="log_file.log",
                 mime="application/octet-stream"
             )
-
 
 
 # 数据库读档
