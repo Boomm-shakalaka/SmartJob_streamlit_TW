@@ -1,0 +1,9 @@
+.idea
+.streamlit
+.DS_Store
+._pycache_
+.data
+.pic
+.log_dictionary
+
+
