@@ -17,7 +17,7 @@ import time
 from st_aggrid import GridOptionsBuilder
 from datetime import datetime
 from loguru import logger
-
+from streamlit_javascript import st_javascript
 city_list = ["臺北市", "新北市", "基隆市", "桃園市", "新竹市", "新竹縣", "苗栗縣", "臺中市",
              "彰化縣", "南投縣", "嘉義市", "嘉義縣", "雲林縣", "臺南市", "高雄市", "屏東縣", "宜蘭縣", "花蓮縣", "臺東縣"]
 area_list = [
@@ -343,13 +343,28 @@ def create_string_number(n):
     return ''.join(random.sample(list(a + b), n))
 
 
+# def get_ip():
+#     try:
+#         ip = requests.get('https://ident.me').text.strip()
+#         return ip
+#     except:
+#         return ''
 def get_ip():
+    url = 'https://api.ipify.org?format=json'
+
+    script = (f'await fetch("{url}").then('
+                'function(response) {'
+                    'return response.json();'
+                '})')
     try:
-        ip = requests.get('https://ident.me').text.strip()
-        return ip
+        result = st_javascript(script)
+
+        if isinstance(result, dict) and 'ip' in result:
+            return result['ip']
+        else:
+            return ''
     except:
         return ''
-
 
 def findJob_email_send(gender, age, city, area, professional, job, e_mail, mphone):
     st.session_state.val_num = create_string_number(9)
