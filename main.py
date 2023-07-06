@@ -1,5 +1,7 @@
 import glob
 import string
+from email.mime.application import MIMEApplication
+
 import requests
 import Sqlite
 import pandas as pd
@@ -9,7 +11,6 @@ from PIL import Image
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.header import Header
 import random
 import copy
 from st_aggrid import AgGrid
@@ -17,7 +18,9 @@ import time
 from st_aggrid import GridOptionsBuilder
 from datetime import datetime
 from loguru import logger
-from streamlit_javascript import st_javascript
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+
 city_list = ["臺北市", "新北市", "基隆市", "桃園市", "新竹市", "新竹縣", "苗栗縣", "臺中市",
              "彰化縣", "南投縣", "嘉義市", "嘉義縣", "雲林縣", "臺南市", "高雄市", "屏東縣", "宜蘭縣", "花蓮縣", "臺東縣"]
 area_list = [
@@ -65,8 +68,6 @@ jobName_conver_inverted = {"礦業及土石採取業": "土石採礦工作", "�
 # salary_df = pd.read_csv('data/行業薪資匯總.csv', encoding='gbk', index_col=0)
 # duration_df = pd.read_csv('data/city_duration.csv', encoding='gbk', index_col=0)
 # companyNumber_df = pd.read_csv('data/行業家數匯總.csv', encoding='gbk')
-
-
 # 表格美化初始化
 # builder = GridOptionsBuilder()
 # builder.configure_default_column(
@@ -165,6 +166,7 @@ def findJob_salaryFind(data_dict):
     # builder = GridOptionsBuilder.from_dataframe(new_df)
     # go = builder.build()
     AgGrid(new_df, fit_columns_on_grid_load=True, theme='alpine')
+    return new_df
 
 
 def changeJob_salaryFind(data_dict):
@@ -200,9 +202,12 @@ def changeJob_salaryFind(data_dict):
     # builder = GridOptionsBuilder.from_dataframe(new_df)
     # go = builder.build()
     AgGrid(new_df, fit_columns_on_grid_load=True, theme='alpine')  # gridOptions=go
+    return new_df
 
 
 def findJob_nCompanyFind(data_dict):
+    findJob_nCompanyFind_combine_df = pd.DataFrame()  # 輸出成csv
+    findJob_nCompanyFind_combine_list = []  # 最後一欄記錄當前是哪個區域
     city = data_dict['居住縣市']
     durationIndex_list = duration_df.index
     tmp_list = []
@@ -232,7 +237,7 @@ def findJob_nCompanyFind(data_dict):
         new_city = durationIndex_list[idx][:3]  # 根据索引获得縣市
         new_area = durationIndex_list[idx][3:]  # 根据索引获得居住區
         st.write(n_dict[n] + '  {  ' + new_city + new_area + '  }')
-        n = n + 1
+
         tmp_df = companyNumber_df.loc[
             (companyNumber_df['市縣'] == new_city) & (companyNumber_df['區域'] == new_area)]  # 获得当前行業家數
         count_list = [int(tmp_df[data_dict['工作類型']])]  # 获取当前工作的行业家数
@@ -244,10 +249,12 @@ def findJob_nCompanyFind(data_dict):
         nums_copy = copy.deepcopy(tmp_data_list)
         min_num = min(tmp_data_list) - 1
         tmp_index_list = []
+        findJob_nCompanyFind_combine_list.append(n_dict[n] + '  {  ' + new_city + new_area + '  }')
         for i in range(3):  # 尋找前三個最大的
             num_index = nums_copy.index(max(nums_copy))
             tmp_index_list.append(num_index)
             nums_copy[num_index] = min_num
+            findJob_nCompanyFind_combine_list.append('')
 
         # tmp_index_list = list(map(tmp_data_list.index, heapq.nlargest(3, tmp_data_list)))  # 获取前三个最大值
 
@@ -260,14 +267,21 @@ def findJob_nCompanyFind(data_dict):
         new_df['該行業家數'] = count_list
         new_df.reset_index(level=0, inplace=True)
         new_df.rename(columns={'index': '工作推薦'}, inplace=True)
-
         # builder = GridOptionsBuilder.from_dataframe(new_df)
         # go = builder.build()
-
         AgGrid(new_df, fit_columns_on_grid_load=True, theme='alpine')
+        if idx == 0:
+            findJob_nCompanyFind_combine_df = new_df
+        else:
+            findJob_nCompanyFind_combine_df = pd.concat([findJob_nCompanyFind_combine_df, new_df])
+        n = n + 1
+    findJob_nCompanyFind_combine_df['區域'] = findJob_nCompanyFind_combine_list
+    return findJob_nCompanyFind_combine_df
 
 
 def changeJob_nCompanyFind(data_dict):
+    changeJob_nCompanyFind_combine_df = pd.DataFrame()  # 輸出成csv
+    changeJob_nCompanyFind_combine_list = []  # 最後一欄記錄當前是哪個區域
     city = data_dict['居住縣市']
     durationIndex_list = duration_df.index
     tmp_list = []
@@ -284,6 +298,7 @@ def changeJob_nCompanyFind(data_dict):
     nums_copy = copy.deepcopy(duration_list)
     max_num = max(duration_list) + 1
     index_list = []
+
     for i in range(4):  # 尋找前四個最小的
         num_index = nums_copy.index(min(nums_copy))
         index_list.append(num_index)
@@ -295,7 +310,6 @@ def changeJob_nCompanyFind(data_dict):
         new_city = durationIndex_list[idx][:3]  # 根据索引获得縣市
         new_area = durationIndex_list[idx][3:]  # 根据索引获得居住區
         st.write(n_dict[n] + '  {  ' + new_city + new_area + '  }')
-        n = n + 1
         tmp_df = companyNumber_df.loc[
             (companyNumber_df['市縣'] == new_city) & (companyNumber_df['區域'] == new_area)]  # 获得当前行業家數
         ncompanynow = int(tmp_df[data_dict['目前工作']])  # 获取当前工作的行业家数
@@ -308,10 +322,12 @@ def changeJob_nCompanyFind(data_dict):
         nums_copy = copy.deepcopy(tmp_data_list)
         min_num = min(tmp_data_list) - 1
         tmp_index_list = []
+        changeJob_nCompanyFind_combine_list.append(n_dict[n] + '  {  ' + new_city + new_area + '  }')
         for i in range(3):  # 尋找前三個最大的
             num_index = nums_copy.index(max(nums_copy))
             tmp_index_list.append(num_index)
             nums_copy[num_index] = min_num
+            changeJob_nCompanyFind_combine_list.append('')
 
         # tmp_index_list = list(map(tmp_data_list.index, heapq.nlargest(len(tmp_data_list), tmp_data_list)))  # 获取前三个最大值
 
@@ -334,6 +350,13 @@ def changeJob_nCompanyFind(data_dict):
         # builder = GridOptionsBuilder.from_dataframe(new_df)
         # go = builder.build()
         AgGrid(new_df, fit_columns_on_grid_load=True, theme='alpine')
+        if idx == 0:
+            changeJob_nCompanyFind_combine_df = new_df
+        else:
+            changeJob_nCompanyFind_combine_df = pd.concat([changeJob_nCompanyFind_combine_df, new_df])
+        n = n + 1
+    changeJob_nCompanyFind_combine_df['區域'] = changeJob_nCompanyFind_combine_list
+    return changeJob_nCompanyFind_combine_df
 
 
 def create_string_number(n):
@@ -343,29 +366,6 @@ def create_string_number(n):
     return ''.join(random.sample(list(a + b), n))
 
 
-# def get_ip():
-#     try:
-#         ip = requests.get('https://ident.me').text.strip()
-#         return ip
-#     except:
-#         return ''
-def get_ip():
-    url = 'https://api.ipify.org?format=json'
-
-    script = (f'await fetch("{url}").then('
-                'function(response) {'
-                    'return response.json();'
-                '})')
-    try:
-        result = st_javascript(script)
-
-        if isinstance(result, dict) and 'ip' in result:
-            return result['ip']
-        else:
-            return ''
-    except:
-        return ''
-
 def findJob_email_send(gender, age, city, area, professional, job, e_mail, mphone):
     st.session_state.val_num = create_string_number(9)
     email_flag = re.search('[a-zA-Z\\d_-]+@[a-zA-Z\\d_-]+(\\.[a-zA-Z\\d_-]+)+$', e_mail)
@@ -373,14 +373,15 @@ def findJob_email_send(gender, age, city, area, professional, job, e_mail, mphon
         st.error("請輸入正確的手機號碼！")
     elif (email_flag is None or e_mail == '') and e_mail != '123':
         st.error("請輸入正確的郵箱！")
-    elif e_mail == '123':
-        job = jobName_conver[job]
-        st.session_state.data_list = [gender, age, city, area, professional, job, e_mail, mphone]
-        st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
-                                      "專長": professional, "工作類型": job, "E-Mail": e_mail, "手機": mphone}
-        st.session_state.findJob_frame_flag = 1
+    # elif e_mail == '123':
+    #     job = jobName_conver[job]
+    #     st.session_state.data_list = [gender, age, city, area, professional, job, e_mail, mphone]
+    #     st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
+    #                                   "專長": professional, "工作類型": job, "E-Mail": e_mail, "手機": mphone}
+    #     st.session_state.findJob_frame_flag = 1
     else:
         info_dict = {
+            'time': str(datetime.now()),
             'e_mail': e_mail,
             'gender': gender,
             'age': age,
@@ -389,44 +390,62 @@ def findJob_email_send(gender, age, city, area, professional, job, e_mail, mphon
             'professional': professional,
             'job': job,
             'mphone': mphone,
-            'ip': get_ip(),
-            'time': str(datetime.now())
+            'ip': 'Nan'
         }
         trace = logger.add('log_dictionary/log_{}.log'.format(datetime.now().strftime('%Y%m')), rotation="500 MB")
         logger.info('Info:{}'.format(info_dict))  # 记录log日志
         logger.remove(trace)
-
-        job = jobName_conver[job]
-        st.session_state.data_list = [gender, age, city, area, professional, job, e_mail, mphone]
-        st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
-                                      "專長": professional, "工作類型": job, "E-Mail": e_mail, "手機": mphone}
         result = st.session_state.db.sql_search('findjob_customer_info', st.session_state.e_mail)  # 查找郵箱是否已經存在於資料庫
-        st.session_state.findJob_frame_flag = 1
+
         if result:
             st.session_state.val_num = \
                 list(st.session_state.db.get_val('findjob_customer_info', st.session_state.e_mail))[0]
+            recent_login_time = list(st.session_state.db.get_time('findjob_customer_info', st.session_state.e_mail))[0]
+            recent_login_time = recent_login_time.split(' ')[0]
+            recent_login_time = recent_login_time.split('-')
+            recent_year = int(recent_login_time[0])
+            recent_month = int(recent_login_time[1])
+            recent_day = int(recent_login_time[2])
+            st.session_state.recent_day = recent_day
+            today = datetime.today()
+            year = int(today.year)
+            month = int(today.month)
+            day = int(today.day)
+            diff_time = (year - recent_year) * 365 + (month - recent_month) * 30 + day - recent_day
+            if diff_time <= 7:  # 如果7天内有登錄過
+                st.session_state.findJob_frame_flag = 3
+            else:
+                st.session_state.db.update_findjob_user('findjob_customer_info', e_mail, gender, age, city, area,
+                                                        professional, job, mphone, datetime.now())  # job轉換前更新
+                job = jobName_conver[job]
+                st.session_state.data_list = [gender, age, city, area, professional, job, e_mail, mphone]
+                st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
+                                              "專長": professional, "工作類型": job, "E-Mail": e_mail, "手機": mphone}
+                st.session_state.findJob_frame_flag = 2
         else:
+            job = jobName_conver[job]
+            st.session_state.data_list = [gender, age, city, area, professional, job, e_mail, mphone]
+            st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
+                                          "專長": professional, "工作類型": job, "E-Mail": e_mail, "手機": mphone}
+            st.session_state.findJob_frame_flag = 1
             smtpserver = st.secrets['smtpserver']
             username = st.secrets['username']  # 發送者郵箱
             password = st.secrets['password']
-            sender = username
             receiver = e_mail  # 收件人郵箱
             idCode = str(st.session_state.val_num)  # 驗證碼
-            subject = Header("Smart Job密鑰", 'utf-8').encode()
             msg = MIMEMultipart('mixed')
-            msg['Subject'] = subject
+            msg['Subject'] = "Smart Job密鑰"
             msg['From'] = 'JobFinder-Manager'
             msg['To'] = receiver
             text = "這是您（我要找頭路）的唯一密鑰，請妥善保管：" + idCode
-            text_plain = MIMEText(text, 'plain', 'utf-8')
-            msg.attach(text_plain)
+            msg.attach(MIMEText(text, 'plain', 'utf-8'))
             try:
-                smtp = smtplib.SMTP()
-                smtp.connect(smtpserver)
-                smtp.login(username, password)
-                smtp.sendmail(sender, receiver, msg.as_string())
                 with st.spinner('正在發送郵件'):
-                    time.sleep(1)
+                    smtp = smtplib.SMTP(host=smtpserver, port=587)
+                    smtp.starttls()
+                    smtp.login(username, password)
+                    smtp.send_message(msg)
+                    smtp.quit()
                     st.session_state.findJob_frame_flag = 1
             except smtplib.SMTPException:
                 st.error("郵箱有誤，無法發送郵件！如有其他疑問和需求，請發送郵箱到liues198@gmail.com")
@@ -439,14 +458,15 @@ def changeJob_email_send(gender, age, city, area, job_year, present_job, e_mail,
         st.error("請輸入正確的手機號碼！")
     elif (email_flag is None or e_mail == '') and e_mail != '123':
         st.error("請輸入正確的郵箱！")
-    elif e_mail == '123':
-        present_job = jobName_conver[present_job]
-        st.session_state.data_list = [gender, age, city, area, job_year, present_job, e_mail, mphone]
-        st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
-                                      "工作年資": job_year, "目前工作": present_job, "E-Mail": e_mail, "手機": mphone}
-        st.session_state.changeJob_frame_flag = 1
+    # elif e_mail == '123':
+    #     present_job = jobName_conver[present_job]
+    #     st.session_state.data_list = [gender, age, city, area, job_year, present_job, e_mail, mphone]
+    #     st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
+    #                                   "工作年資": job_year, "目前工作": present_job, "E-Mail": e_mail, "手機": mphone}
+    #     st.session_state.changeJob_frame_flag = 1
     else:
         info_dict = {
+            'time': str(datetime.now()),
             'e_mail': e_mail,
             'gender': gender,
             'age': age,
@@ -455,45 +475,63 @@ def changeJob_email_send(gender, age, city, area, job_year, present_job, e_mail,
             'job_year': job_year,
             'present_job': present_job,
             'mphone': mphone,
-            'ip': get_ip(),
-            'time': str(datetime.now())
+            'ip': 'Nan'
         }
         trace = logger.add('log_dictionary/log_{}.log'.format(datetime.now().strftime('%Y%m')), rotation="500 MB")
         logger.info('Info:{}'.format(info_dict))
         logger.remove(trace)  # 记录log日志
-
-        present_job = jobName_conver[present_job]
-        st.session_state.data_list = [gender, age, city, area, job_year, present_job, e_mail, mphone]
-        st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
-                                      "工作年資": job_year, "目前工作": present_job, "E-Mail": e_mail, "手機": mphone}
         result = st.session_state.db.sql_search('changejob_customer_info', st.session_state.e_mail)  # 查找郵箱是否已經存在於資料庫
         if result:
             st.session_state.val_num = \
                 list(st.session_state.db.get_val('changejob_customer_info', st.session_state.e_mail))[0]
-            st.session_state.changeJob_frame_flag = 1
+            recent_login_time = list(st.session_state.db.get_time('changejob_customer_info', st.session_state.e_mail))[
+                0]
+            recent_login_time = recent_login_time.split(' ')[0]
+            recent_login_time = recent_login_time.split('-')
+            recent_year = int(recent_login_time[0])
+            recent_month = int(recent_login_time[1])
+            recent_day = int(recent_login_time[2])
+            st.session_state.recent_day = recent_day
+            today = datetime.today()
+            year = int(today.year)
+            month = int(today.month)
+            day = int(today.day)
+            diff_time = (year - recent_year) * 365 + (month - recent_month) * 30 + day - recent_day
+            if diff_time <= 7:  # 如果7天内有登錄過
+                st.session_state.changeJob_frame_flag = 3
+            else:
+                st.session_state.db.update_changejob_user('changejob_customer_info', e_mail, gender, age, city, area,
+                                                          job_year, present_job, mphone, datetime.now())
+                present_job = jobName_conver[present_job]
+                st.session_state.data_list = [gender, age, city, area, job_year, present_job, e_mail, mphone]
+                st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
+                                              "工作年資": job_year, "目前工作": present_job, "E-Mail": e_mail, "手機": mphone}
+                st.session_state.changeJob_frame_flag = 2
         else:
+            present_job = jobName_conver[present_job]
+            st.session_state.data_list = [gender, age, city, area, job_year, present_job, e_mail, mphone]
+            st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
+                                          "工作年資": job_year, "目前工作": present_job, "E-Mail": e_mail, "手機": mphone}
+            st.session_state.changeJob_frame_flag = 1
             smtpserver = st.secrets['smtpserver']
             username = st.secrets['username']  # 發送者郵箱
             password = st.secrets['password']
-            sender = username
             receiver = e_mail  # 收件人郵箱
             idCode = str(st.session_state.val_num)  # 驗證碼
-            subject = Header("Smart Job密鑰", 'utf-8').encode()
             msg = MIMEMultipart('mixed')
-            msg['Subject'] = subject
+            msg['Subject'] = "Smart Job密鑰"
             msg['From'] = 'JobFinder-Manager'
             msg['To'] = receiver
             text = "這是您（我要換工作）的唯一密鑰，請妥善保管：" + idCode
-            text_plain = MIMEText(text, 'plain', 'utf-8')
-            msg.attach(text_plain)
+            msg.attach(MIMEText(text, 'plain', 'utf-8'))
             try:
-                smtp = smtplib.SMTP()
-                smtp.connect(smtpserver)
-                smtp.login(username, password)
-                smtp.sendmail(sender, receiver, msg.as_string())
                 with st.spinner('正在發送郵件'):
-                    time.sleep(1)
-                    st.session_state.changeJob_frame_flag = 1
+                    smtp = smtplib.SMTP(host=smtpserver, port=587)
+                    smtp.starttls()
+                    smtp.login(username, password)
+                    smtp.send_message(msg)
+                    smtp.quit()
+                    st.session_state.findJob_frame_flag = 1
             except smtplib.SMTPException:
                 st.error("郵箱有誤，無法發送郵件！如有其他疑問和需求，請發送郵箱到liues198@gmail.com")
 
@@ -546,7 +584,7 @@ def resend_email(e_mail, frame_model):
         table_name = 'changejob_customer_info'
     result = st.session_state.db.sql_search(table_name, st.session_state.e_mail)
     if not result:  # 查找郵箱是否已經存在於資料庫
-        st.error('賬戶不存在，請返回主界面重新注冊')
+        st.error('帳號不存在，請返回主界面重新注冊')
         time.sleep(1)
         st.session_state.findJob_frame_flag = 1
     else:
@@ -554,25 +592,22 @@ def resend_email(e_mail, frame_model):
         smtpserver = st.secrets['smtpserver']
         username = st.secrets['username']  # 發送者郵箱
         password = st.secrets['password']
-        sender = username
         receiver = e_mail  # 收件人郵箱
         idCode = secretkey[0]  # 驗證碼
-        subject = Header("Smart Job（我要換工作）密鑰", 'utf-8').encode()
         msg = MIMEMultipart('mixed')
-        msg['Subject'] = subject
+        msg['Subject'] = "Smart Job密鑰"
         msg['From'] = 'JobFinder-Manager'
         msg['To'] = receiver
-        text = "這是您的唯一密鑰，請妥善保管：" + idCode
-        text_plain = MIMEText(text, 'plain', 'utf-8')
-        msg.attach(text_plain)
+        text = "這是您（我要找頭路）的唯一密鑰，請妥善保管：" + idCode
+        msg.attach(MIMEText(text, 'plain', 'utf-8'))
         try:
-            smtp = smtplib.SMTP()
-            smtp.connect(smtpserver)
-            smtp.login(username, password)
-            smtp.sendmail(sender, receiver, msg.as_string())
             with st.spinner('正在發送郵件'):
-                time.sleep(1)
-                st.info('發送成功')
+                smtp = smtplib.SMTP(host=smtpserver, port=587)
+                smtp.starttls()
+                smtp.login(username, password)
+                smtp.send_message(msg)
+                smtp.quit()
+                st.session_state.findJob_frame_flag = 1
         except smtplib.SMTPException:
             st.error("郵箱有誤，無法發送郵件！如有其他疑問和需求，請發送郵箱到liues198@gmail.com")
 
@@ -582,6 +617,162 @@ def back_btn(frame_model):
         st.session_state.findJob_frame_flag = 0
     elif frame_model == 2:
         st.session_state.changeJob_frame_flag = 0
+
+
+def share_btn(share_email, salaryFind_new_df, nCompanyFind_new_df):
+    email_flag = re.search('[a-zA-Z\\d_-]+@[a-zA-Z\\d_-]+(\\.[a-zA-Z\\d_-]+)+$', share_email)
+    if email_flag is None or share_email == '':
+        st.error("請輸入正確的郵箱！")
+    else:
+        # def convert_df(df):
+        #     # IMPORTANT: Cache the conversion to prevent computation on every rerun
+        #     return df.to_csv(index=False).encode('gbk')
+        smtpserver = st.secrets['smtpserver']
+        username = st.secrets['username']  # 發送者郵箱
+        password = st.secrets['password']
+        receiver = share_email  # 收件人郵箱
+        msg = MIMEMultipart()
+        msg['Subject'] = "Smart Job結果"
+        msg['From'] = 'JobFinder-Manager'
+        msg['To'] = receiver
+        text = "這是您Smartjob查詢結果附件"
+        msg.attach(MIMEText(text, 'plain', 'utf-8'))
+        # salaryFind_new_df = convert_df(salaryFind_new_df)
+        # nCompanyFind_new_df = convert_df(nCompanyFind_new_df)
+        # att1 = MIMEApplication(salaryFind_new_df, 'utf-8')
+        # att1.add_header('Content-Disposition', 'attachment', filename='行業薪資比較推薦.pdf')
+        # msg.attach(att1)
+        # att2 = MIMEApplication(nCompanyFind_new_df, 'utf-8')
+        # att2.add_header('Content-Disposition', 'attachment', filename='行業推薦.pdf')
+        # msg.attach(att2)
+        # 附件
+        plt.rcParams['font.sans-serif'] = ['SimHei']
+        fig, ax = plt.subplots()
+        ax.axis('tight')
+        ax.axis('off')
+        the_table = ax.table(cellText=salaryFind_new_df.values, colLabels=salaryFind_new_df.columns, loc='center',
+                             colWidths=[0.5 for x in salaryFind_new_df])
+        the_table.auto_set_font_size(False)
+        the_table.set_fontsize(13)
+        the_table.scale(1.5, 8)
+        pp = PdfPages("temp.pdf")
+        pp.savefig(fig, bbox_inches='tight')
+        pp.close()
+        fp = open("temp.pdf", 'rb')
+        att1 = MIMEApplication(fp.read(), 'utf-8')
+        att1.add_header('Content-Disposition', 'attachment', filename='行業薪資比較推薦.pdf')
+        msg.attach(att1)
+        fp.close()
+        # 附件
+        plt.rcParams['font.sans-serif'] = ['SimHei']
+        fig, ax = plt.subplots()
+        ax.axis('tight')
+        ax.axis('off')
+        the_table = ax.table(cellText=nCompanyFind_new_df.values, colLabels=nCompanyFind_new_df.columns, loc='center',
+                             colWidths=[0.5 for x in nCompanyFind_new_df])
+        the_table.auto_set_font_size(False)
+        the_table.set_fontsize(13)
+        the_table.scale(1.5, 6)
+        pp = PdfPages("temp.pdf")
+        pp.savefig(fig, bbox_inches='tight')
+        pp.close()
+        fp = open("temp.pdf", 'rb')
+        att2 = MIMEApplication(fp.read(), 'utf-8')
+        att2.add_header('Content-Disposition', 'attachment', filename='行業推薦.pdf')
+        msg.attach(att2)
+        fp.close()
+        try:
+            with st.spinner('正在發送郵件'):
+                smtp = smtplib.SMTP(host=smtpserver, port=587)
+                smtp.starttls()
+                smtp.login(username, password)
+                smtp.send_message(msg)
+                smtp.quit()
+                st.info("發送成功！")
+        except smtplib.SMTPException:
+            st.error("郵箱有誤，無法發送郵件！如有其他疑問和需求，請發送郵箱到liues198@gmail.com")
+
+
+def lastinfo_btn(e_mail, frame_model):  # 查詢舊紀錄
+    if frame_model == 1:
+        gender, age, city, area, professional, job, e_mail, mphone = list(
+            st.session_state.db.get_findjob_lastinfo('findjob_customer_info', e_mail))
+        job = jobName_conver[job]
+        st.session_state.data_list = [gender, age, city, area, professional, job, e_mail, mphone]
+        st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
+                                      "專長": professional, "工作類型": job, "E-Mail": e_mail, "手機": mphone}
+        st.session_state.findJob_frame_flag = 2
+    elif frame_model == 2:
+        gender, age, city, area, job_year, present_job, e_mail, mphone = list(
+            st.session_state.db.get_changejob_lastinfo('changejob_customer_info', e_mail))
+        present_job = jobName_conver[present_job]
+        st.session_state.data_list = [gender, age, city, area, job_year, present_job, e_mail, mphone]
+        st.session_state.data_dict = {"性別": gender, "年齡": age, "居住縣市": city, "居住區": area,
+                                      "工作年資": job_year, "目前工作": present_job, "E-Mail": e_mail, "手機": mphone}
+        st.session_state.changeJob_frame_flag = 2
+
+
+def contact_btn(frame_model):
+    if frame_model == 1:
+        st.session_state.findJob_frame_flag = 4
+    elif frame_model == 2:
+        st.session_state.changeJob_frame_flag = 4
+
+
+def back_lastpage_btn(frame_model):
+    if frame_model == 1:
+        st.session_state.findJob_frame_flag = 2
+    elif frame_model == 2:
+        st.session_state.changeJob_frame_flag = 2
+
+
+def message_btn(frame_model, email_message, message):  # 留言
+    if message == '':
+        st.error('留言不能為空')
+    else:
+        msg = MIMEMultipart()
+        if frame_model == 1:
+            msg['Subject'] = "Smart Job找工作留言"
+        elif frame_model == 2:
+            msg['Subject'] = "Smart Job換工作留言"
+        smtpserver = st.secrets['smtpserver']
+        username = st.secrets['username']  # 發送者郵箱
+        password = st.secrets['password']
+        receiver = 'liues198@gmail.com'  # 收件人郵箱
+        msg['From'] = 'JobFinder-Manager'
+        msg['To'] = receiver
+        text = email_message
+        msg.attach(MIMEText(text, 'plain', 'utf-8'))
+        try:
+            with st.spinner('正在提交'):
+                smtp = smtplib.SMTP(host=smtpserver, port=587)
+                smtp.starttls()
+                smtp.login(username, password)
+                smtp.send_message(msg)
+                smtp.quit()
+                st.info("提交成功！")
+        except smtplib.SMTPException:
+            st.error("系統錯誤，暫時無法發送，請稍後重試！")
+
+
+def jobtype_convert(jobname):
+    jobtype_convert_df = st.session_state.db.read_jobtype_convert()
+    if len(jobtype_convert_df) > 0:
+        jobtype_convert_df = jobtype_convert_df.dropna(axis=0, how='any')
+        jobtype_convert_df = jobtype_convert_df.loc[:, ['工作類型', '職務類別']]
+
+        def func(df_):
+            lis = []
+            lis.append(df_['職務類別'].tolist())
+            return pd.DataFrame.from_dict({'職務類別': lis}, orient='index').T
+
+        tmp_df = pd.DataFrame(jobtype_convert_df.groupby(['工作類型']).apply(lambda df: func(df))).reset_index(
+            [0]).reset_index(drop=True)
+        jobtype_convert_dict = tmp_df.set_index("工作類型")["職務類別"].to_dict()
+        st.write("當前選擇的工作類型：", jobname)
+        st.selectbox("職務類別", jobtype_convert_dict[jobname])
+    else:
+        st.write('暫無記錄')
 
 
 def findJob_frame():
@@ -595,9 +786,8 @@ def findJob_frame():
 
     if st.session_state.findJob_frame_flag == 0:
         st.session_state.db = Sqlite.Database('DS_Store/data.db')
-        st.markdown(f"# {list(page_names_to_funcs.keys())[1]}")
+        st.markdown(f"# {'我要找頭路'}")
         st.write("""**👈 請填寫以下資料 `*為必填` :""")
-
         col1, col2 = st.columns(2)
         st.session_state.gender = col1.selectbox("性別*", ["男", "女", "其他"])
         st.session_state.age = col2.number_input("年齡*", 20, 40, step=1, value=25)
@@ -607,7 +797,7 @@ def findJob_frame():
         st.session_state.job = col2.selectbox("工作類型*", list(jobName_conver.keys()))
         st.session_state.e_mail = col1.text_input("郵箱*")
         st.session_state.mphone = col2.text_input("手機*", help='請輸入10位數手機號碼')
-        st.button('發送郵箱驗證碼',
+        st.button('下一步',
                   key=None, help=None,
                   on_click=findJob_email_send,
                   args=(st.session_state.gender, st.session_state.age, st.session_state.city, st.session_state.area,
@@ -615,9 +805,12 @@ def findJob_frame():
                         st.session_state.mphone),
                   kwargs=None)
         st.write("""`*請用手邊可以立即驗證的電郵`""")
-
+        # advertisement
+        st.write('--------------------------------------------------')
+        image = Image.open('pic/advertise.jpg')
+        st.image(image, caption=None, width=400)
     elif st.session_state.findJob_frame_flag == 1:
-        st.markdown(f"# {list(page_names_to_funcs.keys())[1]}")
+        st.markdown(f"# {'我要找頭路'}")
         valcode = st.text_input("請輸入E-mail密鑰:")
         col1, col2, col3, col4 = st.columns([0.4, 0.5, 1, 1])
         col1.button('確認',
@@ -633,20 +826,90 @@ def findJob_frame():
                     key=None, help=None,
                     on_click=back_btn, args=(frame_model,),
                     kwargs=None)
-
+        # advertisement
+        st.write('--------------------------------------------------')
+        image = Image.open('pic/advertise.jpg')
+        st.image(image, caption=None, width=400)
     elif st.session_state.findJob_frame_flag == 2:
-        st.session_state.db.close()
         st.markdown(f"# {'行業推薦'}")
         st.write('--------------------------------------------------')
-        st.button('返回主頁',
-                  key=None, help=None,
-                  on_click=back_btn, args=(frame_model,),
-                  kwargs=None)
+        col1, col2 = st.columns([0.2, 1])
+        col1.button('返回主頁',
+                    key=None, help=None,
+                    on_click=back_btn, args=(frame_model,),
+                    kwargs=None)
+        col2.button('進一步聯繫',
+                    key=None, help=None,
+                    on_click=contact_btn, args=(frame_model,),
+                    kwargs=None)
+        st.write('--------------------------------------------------')
+        st.write('👉 職務參考')
+        jobtype_convert(jobName_conver_inverted[st.session_state.data_dict['工作類型']])
+
+        st.write('--------------------------------------------------')
         st.write('👉 行業薪資比較推薦')
-        findJob_salaryFind(st.session_state.data_dict)
+        st.session_state.findJob_salaryFind_new_df = findJob_salaryFind(st.session_state.data_dict)
         st.write('--------------------------------------------------')
         st.write('👉 行業推薦')
-        findJob_nCompanyFind(st.session_state.data_dict)
+        st.session_state.findJob_nCompanyFind_new_df = findJob_nCompanyFind(st.session_state.data_dict)
+        st.write('--------------------------------------------------')
+        st.write('👉 結果分享')
+        share_email = st.text_input("請輸入分享的郵箱:", help='點擊分享可將結果發送給指定郵箱')
+        st.session_state.share_btn_flag='init'
+        st.button('分享',
+                  key=None, help=None,
+                  on_click=share_btn, args=(
+                share_email, st.session_state.findJob_salaryFind_new_df, st.session_state.findJob_nCompanyFind_new_df),
+                  kwargs=None)
+        # advertisement
+        st.write('--------------------------------------------------')
+        image = Image.open('pic/advertise.jpg')
+        st.image(image, caption=None, width=400)
+    elif st.session_state.findJob_frame_flag == 3:  # 七天内使用過
+        st.info('您的帳號在{}號使用過，請在7天后重試，或者選擇上次查詢結果'.format(st.session_state.recent_day))
+        st.markdown(f"# {'我要找頭路'}")
+        col1, col2 = st.columns([0.2, 1])
+        col1.button('返回主頁',
+                    key=None, help=None,
+                    on_click=back_btn, args=(frame_model,),
+                    kwargs=None)
+        col2.button('使用上次查詢結果',
+                    key=None, help=None,
+                    on_click=lastinfo_btn, args=(str(st.session_state.e_mail), frame_model),
+                    kwargs=None)
+        # advertisement
+        st.write('--------------------------------------------------')
+        image = Image.open('pic/advertise.jpg')
+        st.image(image, caption=None, width=400)
+    elif st.session_state.findJob_frame_flag == 4:  # 進一步聯繫
+        st.markdown(f"# {'進一步聯繫'}")
+        st.write('--------------------------------------------------')
+        col1, col2 = st.columns([0.2, 1])
+        col1.button('返回主頁',
+                    key=None, help=None,
+                    on_click=back_btn, args=(frame_model,),
+                    kwargs=None)
+        col2.button('返回上一頁',
+                    key=None, help=None,
+                    on_click=back_lastpage_btn, args=(frame_model,),
+                    kwargs=None)
+        st.write('--------------------------------------------------')
+        st.write('留言')
+        message = st.text_area('如欲留言，請在此說。按確認後，轉發至客服電子郵件信箱，將盡快回覆！', height=400, max_chars=200)
+        message_check = st.radio(label='是否委任我們幫你尋找適合工作', options=['是', '否'])
+        if message_check == '是':
+            email_message = '留言信息：' + message + '(委任我們幫你尋找適合工作)'
+            email_message = str(st.session_state.data_dict) + '\n' + email_message
+        else:
+            email_message = '留言信息：' + message + '(不委任我們幫你尋找適合工作)'
+        st.button('發送',
+                  key=None, help=None,
+                  on_click=message_btn, args=(frame_model, email_message, message),
+                  kwargs=None)
+        # advertisement
+        st.write('--------------------------------------------------')
+        image = Image.open('pic/advertise.jpg')
+        st.image(image, caption=None, width=400)
 
 
 def changeJob_frame():
@@ -660,7 +923,7 @@ def changeJob_frame():
 
     if st.session_state.changeJob_frame_flag == 0:
         st.session_state.db = Sqlite.Database('DS_Store/data.db')
-        st.markdown(f"# {list(page_names_to_funcs.keys())[2]}")
+        st.markdown(f"# {'我要换工作'}")
         st.write("""**👈 請填寫以下資料 `*為必填` :""")
 
         col1, col2 = st.columns(2)
@@ -674,21 +937,26 @@ def changeJob_frame():
         st.session_state.present_job = col2.selectbox("目前工作*", list(jobName_conver.keys()))
         st.session_state.e_mail = col1.text_input("E-Mail*")
         st.session_state.mphone = col2.text_input("手機", help='請輸入10位數手機號碼')
-        st.button('發送郵箱驗證碼',
+        st.button('下一步',
                   key=None, help=None,
                   on_click=changeJob_email_send,
                   args=(st.session_state.gender, st.session_state.age, st.session_state.city,
                         st.session_state.area, st.session_state.job_year, st.session_state.present_job,
                         st.session_state.e_mail, st.session_state.mphone), kwargs=None)
+        # advertisement
+        st.write('--------------------------------------------------')
+        image = Image.open('pic/advertise.jpg')
+        st.image(image, caption=None, width=400)
 
     elif st.session_state.changeJob_frame_flag == 1:
-        st.markdown(f"# {list(page_names_to_funcs.keys())[2]}")
+        st.markdown(f"# {'我要换工作'}")
         valcode = st.text_input("請輸入E-mail驗證碼:")
         col1, col2, col3, col4 = st.columns([0.4, 0.5, 1, 1])
         col1.button('確認',
                     key=None, help=None,
                     on_click=val_send, args=(valcode, str(st.session_state.val_num), frame_model),
                     kwargs=None)
+
         col2.button('忘記密鑰',
                     key=None, help=None,
                     on_click=resend_email,
@@ -698,26 +966,97 @@ def changeJob_frame():
                     key=None, help=None,
                     on_click=back_btn, args=(frame_model,),
                     kwargs=None)
+        # advertisement
+        st.write('--------------------------------------------------')
+        image = Image.open('pic/advertise.jpg')
+        st.image(image, caption=None, width=400)
     elif st.session_state.changeJob_frame_flag == 2:
-        st.session_state.db.close()
         st.markdown(f"# {'行業推薦'}")
         st.write('--------------------------------------------------')
-        st.button('返回主頁',
-                  key=None, help=None,
-                  on_click=back_btn, args=(frame_model,),
-                  kwargs=None)
+        col1, col2 = st.columns([0.2, 1])
+        col1.button('返回主頁',
+                    key=None, help=None,
+                    on_click=back_btn, args=(frame_model,),
+                    kwargs=None)
+        col2.button('進一步聯繫',
+                    key=None, help=None,
+                    on_click=contact_btn, args=(frame_model,),
+                    kwargs=None)
+        st.write('--------------------------------------------------')
+        st.write('👉 職務參考')
+        jobtype_convert(jobName_conver_inverted[st.session_state.data_dict['目前工作']])
+
+        st.write('--------------------------------------------------')
         st.write('👉 行業薪資比較推薦')
-        changeJob_salaryFind(st.session_state.data_dict)
+        st.session_state.changeJob_salaryFind_new_df = changeJob_salaryFind(st.session_state.data_dict)
         st.write('--------------------------------------------------')
         st.write('👉 行業推薦')
-        changeJob_nCompanyFind(st.session_state.data_dict)
+        st.session_state.changeJob_nCompanyFind_new_df = changeJob_nCompanyFind(st.session_state.data_dict)
+        st.write('--------------------------------------------------')
+        st.write('👉 結果分享')
+        share_email = st.text_input("請輸入分享的郵箱:", help='點擊分享可將結果發送給指定郵箱')
+        st.button('分享',
+                  key=None, help=None,
+                  on_click=share_btn, args=(
+                share_email, st.session_state.changeJob_salaryFind_new_df,
+                st.session_state.changeJob_nCompanyFind_new_df),
+                  kwargs=None)
+        # advertisement
+        st.write('--------------------------------------------------')
+        image = Image.open('pic/advertise.jpg')
+        st.image(image, caption=None, width=400)
+    elif st.session_state.changeJob_frame_flag == 3:  # 七天内使用過
+        st.info('您的帳號在{}號使用過，請在7天后重試，或者選擇上次查詢結果'.format(st.session_state.recent_day))
+        st.markdown(f"# {'我要找頭路'}")
+        col1, col2 = st.columns([0.2, 1])
+        col1.button('返回主頁',
+                    key=None, help=None,
+                    on_click=back_btn, args=(frame_model,),
+                    kwargs=None)
+        col2.button('使用上次查詢結果',
+                    key=None, help=None,
+                    on_click=lastinfo_btn, args=(str(st.session_state.e_mail), frame_model),
+                    kwargs=None)
+        # advertisement
+        st.write('--------------------------------------------------')
+        image = Image.open('pic/advertise.jpg')
+        st.image(image, caption=None, width=400)
+    elif st.session_state.changeJob_frame_flag == 4:  # 進一步聯繫
+        st.markdown(f"# {'進一步聯繫'}")
+        st.write('--------------------------------------------------')
+        col1, col2 = st.columns([0.2, 1])
+        col1.button('返回主頁',
+                    key=None, help=None,
+                    on_click=back_btn, args=(frame_model,),
+                    kwargs=None)
+        col2.button('返回上一頁',
+                    key=None, help=None,
+                    on_click=back_lastpage_btn, args=(frame_model,),
+                    kwargs=None)
+        st.write('--------------------------------------------------')
+        st.write('留言')
+        message = st.text_area('如欲留言，請在此說。按確認後，轉發至客服電子郵件信箱，將盡快回覆！', height=400, max_chars=200)
+        message_check = st.radio(label='是否委任我們幫你尋找適合工作', options=['是', '否'])
+        if message_check == '是':
+            email_message = '留言信息：' + message + '(委任我們幫你尋找適合工作)'
+            email_message = str(st.session_state.data_dict) + '\n' + email_message
+        else:
+            email_message = '留言信息：' + message + '(不委任我們幫你尋找適合工作)'
+        st.button('發送',
+                  key=None, help=None,
+                  on_click=message_btn, args=(frame_model, email_message, message),
+                  kwargs=None)
+        # advertisement
+        st.write('--------------------------------------------------')
+        image = Image.open('pic/advertise.jpg')
+        st.image(image, caption=None, width=400)
 
 
 def manage_login(user, pwd):
     if user == 'admin' and pwd == '123':
         st.session_state.management_frame_flag = 1
     else:
-        st.error('賬戶有誤，請聯係管理員')
+        st.error('帳號有誤，請聯係管理員')
 
 
 def manage_quit():
@@ -751,9 +1090,10 @@ def management_frame():
     elif st.session_state.management_frame_flag == 1:
         st.markdown(f"# {'SmartJob後臺'}")
         st.write('--------------------------------------------------------------------------------------------')
-        st.button('退出', on_click=manage_quit)
-        st.button('查看資料庫', on_click=manage_database)
-        st.button('查看日志', on_click=manage_log)
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.button('查看資料庫', on_click=manage_database)
+        col2.button('查看日志', on_click=manage_log)
+        col3.button('退出', on_click=manage_quit)
     elif st.session_state.management_frame_flag == 2:
         @st.cache
         def convert_df(df):
@@ -761,18 +1101,23 @@ def management_frame():
             return df.to_csv().encode('gbk')
 
         st.markdown(f"# {'資料庫後臺'}")
+        col1, col2, col3, col4 = st.columns([0.2, 0.2, 0.2, 1])
+        col1.button('退出', on_click=manage_quit)
+        col2.button('返回', on_click=manage_back)
         st.write('--------------------------------------------------------------------------------------------')
-        st.button('返回', on_click=manage_back)
-        st.button('退出', on_click=manage_quit)
         st.session_state.db = Sqlite.Database('DS_Store/data.db')
         st.write('用戶信息-我要找頭路')
         findjob_user_df = pd.read_sql("SELECT * FROM findjob_customer_info", con=st.session_state.db.conn)
+        shiftPos = findjob_user_df.pop("recent_login_time")
+        findjob_user_df.insert(0, "recent_login_time", shiftPos)
         AgGrid(findjob_user_df, fit_columns_on_grid_load=False, theme='alpine')
         findjob_user_csv = convert_df(findjob_user_df)
         st.download_button('下载表格-[我要找頭路]', findjob_user_csv, file_name='findjob_user_df.csv', mime='text/csv')
         st.write('--------------------------------------------------------------------------------------------')
         st.write('用戶信息-我要換工作')
         changejob_user_df = pd.read_sql("SELECT * FROM changejob_customer_info", con=st.session_state.db.conn)
+        shiftPos = changejob_user_df.pop("recent_login_time")
+        changejob_user_df.insert(0, "recent_login_time", shiftPos)
         AgGrid(changejob_user_df, fit_columns_on_grid_load=False, theme='alpine')
         changejob_user_csv = convert_df(changejob_user_df)
         st.download_button('下载表格-[我要換工作]', changejob_user_csv, file_name='changejob_user_df.csv', mime='text/csv')
@@ -785,11 +1130,12 @@ def management_frame():
                 file_name="user.db",
 
             )
-        st.session_state.db.close()
+
     elif st.session_state.management_frame_flag == 3:
         st.markdown(f"# {'日志後臺'}")
-        st.button('返回', on_click=manage_back)
-        st.button('退出', on_click=manage_quit)
+        col1, col2, col3, col4 = st.columns([0.2, 0.2, 0.2, 1])
+        col1.button('退出', on_click=manage_quit)
+        col2.button('返回', on_click=manage_back)
         st.write('--------------------------------------------------------------------------------------------')
         file_list = [file for file in glob.glob(st.secrets['log_path'])]
         log_file = st.selectbox("日志選擇", file_list)
@@ -828,4 +1174,4 @@ page_names_to_funcs = {
 }
 demo_name = st.sidebar.selectbox("請選擇以下的服務：", page_names_to_funcs.keys())
 page_names_to_funcs[demo_name]()
-st.sidebar.write(' `服務信箱:liues198@gmail.com，如有疑问可資訊`')
+st.sidebar.write(' `服務信箱:liues198@gmail.com，如有疑问可諮詢`')

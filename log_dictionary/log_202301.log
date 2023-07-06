@@ -1,0 +1,2 @@
+2023-01-02 20:23:43.954 | INFO     | __main__:findJob_email_send:374 - Info:{'time': '2023-01-02 20:23:43.953315', 'e_mail': '12346346@qq.com', 'gender': '男', 'age': 25, 'city': '臺北市', 'area': '全部', 'professional': '有專門證照', 'job': '土石採礦工作', 'mphone': '1234567890', 'ip': 'Nan'}
+2023-01-02 20:24:12.644 | INFO     | __main__:findJob_email_send:374 - Info:{'time': '2023-01-02 20:24:12.643907', 'e_mail': '123456789@123.com', 'gender': '男', 'age': 25, 'city': '臺北市', 'area': '全部', 'professional': '有專門證照', 'job': '土石採礦工作', 'mphone': '1234567890', 'ip': 'Nan'}

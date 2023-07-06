@@ -45,6 +45,12 @@ class Database():
         ret = self.cur.fetchone()
         return ret
 
+    def get_time(self, table_name, e_mail):
+        self.cur.execute("select recent_login_time from {} where email =?;".format(table_name), (e_mail,))  # 執行
+        self.conn.commit()
+        ret = self.cur.fetchone()
+        return ret
+
     def update_findjob_user(self, table_name, email, gender, age, city, area, professional, job_type, phone,
                             recent_login_time):
         self.cur.execute(
@@ -58,6 +64,26 @@ class Database():
             "UPDATE {} SET gender=?,age=?,city=?,area=?,job_year=?,present_job=?,phone=?,recent_login_time=? WHERE email=?"
             .format(table_name), (gender, age, city, area, job_year, present_job, phone, recent_login_time, email,))
         self.conn.commit()
+
+    def get_findjob_lastinfo(self, table_name, e_mail):
+        self.cur.execute(
+            "select gender, age, city, area, professional, job_type, email,phone from {} where email =?;".format(
+                table_name), (e_mail,))  # 執行
+        self.conn.commit()
+        ret = self.cur.fetchone()
+        return ret
+
+    def get_changejob_lastinfo(self, table_name, e_mail):
+        self.cur.execute(
+            "select gender, age, city, area, job_year, present_job, email,phone from {} where email =?;".format(
+                table_name), (e_mail,))  # 執行
+        self.conn.commit()
+        ret = self.cur.fetchone()
+        return ret
+
+    def read_jobtype_convert(self):
+        ret=pd.read_sql("select * from jobtype_convert;", self.conn)
+        return ret
 
 
 if __name__ == '__main__':

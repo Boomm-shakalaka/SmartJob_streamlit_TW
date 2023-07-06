@@ -1,1 +1,2 @@
 2022-12-17 11:30:01.984 | INFO     | __main__:changeJob_email_send:456 - Info:{'e_mail': '495108670@qq.com', 'gender': '男', 'age': 25, 'city': '臺北市', 'area': '全部', 'job_year': '1年以下', 'present_job': '土石採礦工作', 'mphone': '1234567890', 'ip': None, 'time': '2022-12-17 11:30:01.972010'}
+2022-12-27 21:09:34.440 | INFO     | __main__:findJob_email_send:396 - Info:{'e_mail': '495108670@qq.com', 'gender': '男', 'age': 25, 'city': '臺北市', 'area': '全部', 'professional': '有專門證照', 'job': '土石採礦工作', 'mphone': '1234567890', 'ip': '', 'time': '2022-12-27 21:09:34.439923'}
